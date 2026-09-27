@@ -534,15 +534,15 @@ def weather_html(weather_data: dict[str, Any]) -> str:
         temp_range = f"{night_temp}°C ~ {day_temp}°C" if day_temp and night_temp else ""
 
         cards.append(f"""
-        <div class="weather-card">
+        <div class="weather-card" data-date="{esc(date)}">
           <div class="weather-date">
             <div class="weather-date-text">{esc(date)}</div>
             <div class="weather-week">{esc(week)}</div>
           </div>
-          <div class="weather-icon">{icon}</div>
+          <div class="weather-icon" data-w-icon>{icon}</div>
           <div class="weather-info">
-            <div class="weather-condition">{esc(day_weather)} / {esc(night_weather)}</div>
-            <div class="weather-temp">{esc(temp_range)}</div>
+            <div class="weather-condition" data-w-cond>{esc(day_weather)} / {esc(night_weather)}</div>
+            <div class="weather-temp" data-w-temp>{esc(temp_range)}</div>
           </div>
         </div>
         """)
@@ -559,9 +559,13 @@ def weather_html(weather_data: dict[str, Any]) -> str:
         """
 
     return f"""
-    <div class="weather-section">
+    <div class="weather-section" data-w-now>
       <div class="weather-header">
         <h2 class="weather-title">🌤️ {esc(city)}天气预报</h2>
+        <div class="weather-now-inline">
+          <span class="wn-temp" data-w-now-temp>--°</span>
+          <span class="wn-desc" data-w-now-desc>加载中...</span>
+        </div>
       </div>
       <div class="weather-cards">
         {"".join(cards)}

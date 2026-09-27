@@ -1214,23 +1214,143 @@
       .food-grid { grid-template-columns: 1fr; }
       #food-map-container { height: 460px; }
     }
+  
+    /* ============ tab-nav-enhanced: sticky 5-tab + apple-style weather ============ */
+    .tab-nav {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(12, 45, 72, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .tab-nav-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      gap: 4px;
+      padding: 8px 16px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .tab-nav-inner::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex: 0 0 auto;
+      padding: 8px 18px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .tab-btn.active {
+      color: #0c2d48;
+      background: #e0f2fe;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .page.tab-pane { display: none; animation: tabFade 0.25s ease; }
+    .page.tab-pane.active { display: block; }
+    @keyframes tabFade {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Apple-style weather cards */
+    .weather-section {
+      background: linear-gradient(135deg, #0c2d48 0%, #1e5f7f 100%);
+      border-radius: 16px;
+      padding: 20px;
+      color: #fff;
+      margin: 16px 0;
+    }
+    .weather-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .weather-title { font-size: 18px; font-weight: 600; margin: 0; }
+    .weather-now-inline {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      background: rgba(255,255,255,0.12);
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+    .wn-temp { font-size: 22px; font-weight: 700; }
+    .wn-desc { font-size: 13px; opacity: 0.9; }
+    .weather-cards {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 4px 2px 12px;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x mandatory;
+    }
+    .weather-cards::-webkit-scrollbar { height: 4px; }
+    .weather-cards::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 2px; }
+    .weather-card {
+      flex: 0 0 130px;
+      scroll-snap-align: start;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 14px;
+      padding: 14px 12px;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .weather-card:hover { background: rgba(255,255,255,0.16); }
+    .weather-card.today {
+      background: rgba(255,255,255,0.95);
+      color: #0c2d48;
+      border: 2px solid #fff;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    .weather-card.past { opacity: 0.45; filter: grayscale(0.5); }
+    .weather-date-text { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .weather-week { font-size: 11px; opacity: 0.7; }
+    .weather-icon { font-size: 32px; margin: 8px 0 4px; line-height: 1; }
+    .weather-condition { font-size: 12px; opacity: 0.9; margin-bottom: 4px; }
+    .weather-temp { font-size: 13px; font-weight: 600; }
+    .weather-tips {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 10px;
+    }
+    .weather-tips-title { font-weight: 600; margin-bottom: 6px; }
+    .weather-tips-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.8; }
+    @media (max-width: 640px) {
+      .tab-btn { padding: 8px 14px; font-size: 13px; }
+      .weather-card { flex: 0 0 110px; }
+    }
   </style>
+</style>
 </head>
 <body>
-  <nav class="navbar">
-    <div class="navbar-container">
-      <div class="navbar-brand" onclick="showPage('hotels')">地图旅行助手</div>
-      <ul class="navbar-menu">
-        <li class="navbar-item active" id="nav-hotels" onclick="showPage('hotels')">酒店选择</li>
-        <li class="navbar-item" id="nav-attractions" onclick="showPage('attractions')">目的地景点</li>
-        <li class="navbar-item" id="nav-foods" onclick="showPage('foods')">美食推荐</li>
-        <li class="navbar-item" id="nav-route" onclick="showPage('route')">路线规划</li>
-        <li class="navbar-item" id="nav-sources" onclick="showPage('sources')">数据来源</li>
-      </ul>
+  <!-- tab-nav-enhanced: sticky 5-tab navigation (行程·地图/天气/美食/文娱/速查) -->
+  <nav class="tab-nav">
+    <div class="tab-nav-inner">
+      <button class="tab-btn active" id="nav-hotels" onclick="showPage('hotels')">📅 行程 · 地图</button>
+      <button class="tab-btn" id="nav-attractions" onclick="showPage('attractions')">🌤 天气</button>
+      <button class="tab-btn" id="nav-foods" onclick="showPage('foods')">🍽 美食</button>
+      <button class="tab-btn" id="nav-route" onclick="showPage('route')">🎭 文娱活动</button>
+      <button class="tab-btn" id="nav-sources" onclick="showPage('sources')">📋 速查&贴士</button>
     </div>
   </nav>
 
-  <div class="page active" id="page-hotels">
+  <div class="page tab-pane active" id="page-hotels">
     <header class="header">
       <h1>{{TITLE}}</h1>
       <p>高德地图标记 | 景点与酒店推荐 | App 与网页链接 fallback | 信息以实时平台为准</p>
@@ -1263,7 +1383,7 @@
     </main>
   </div>
 
-  <div class="page" id="page-attractions">
+  <div class="page tab-pane" id="page-attractions">
     <section class="attractions-hero">
       <h1>{{DESTINATION}}景点清单</h1>
       <p>按热门程度、动线便利性和首次到访适配度整理</p>
@@ -1271,7 +1391,7 @@
     <div class="attractions-grid">{{ATTRACTIONS}}</div>
   </div>
 
-  <div class="page" id="page-foods">
+  <div class="page tab-pane" id="page-foods">
     <section class="attractions-hero">
       <h1>{{DESTINATION}}美食推荐</h1>
       <p>按评分、口碑和推荐菜精选 | 数据来源：大众点评</p>
@@ -1291,7 +1411,7 @@
     </main>
   </div>
 
-  <div class="page" id="page-route">
+  <div class="page tab-pane" id="page-route">
     <header class="header">
       <h1>{{TITLE}}路线规划</h1>
       <p>按天拆分路线 | 地图曲线可视化 | 酒店出发与返程 | 信息以实时平台为准</p>
@@ -1311,7 +1431,7 @@
     </main>
   </div>
 
-  <div class="page" id="page-sources">
+  <div class="page tab-pane" id="page-sources">
     <main class="container">
       <section class="info-panel">
         <h2 class="section-title">数据来源与说明</h2>
