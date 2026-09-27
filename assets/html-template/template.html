@@ -1736,5 +1736,271 @@
       renderFoodFallback();
     }
   </script>
+<!-- weather-enhance-injected: dual-source + per-day region + past-date freeze + JSONP robustness -->
+<script>
+(function(){
+  // === Config (overridable by generated page) ===
+  var AMAP_KEY = window.AMAP_KEY || '';
+  var TRIP_DATES = window.TRIP_DATES || [];
+  var DAY_ADCCODE = window.DAY_ADCCODE || {};
+  var DAY_LATLNG = window.DAY_LATLNG || {};
+  var HOTEL_ADCODE = window.HOTEL_ADCODE || '';
+
+  // === WMO code map (Open-Meteo) ===
+  var wmoCodeMap={
+    0:{n:'晴',i:'☀️'},1:{n:'晴间多云',i:'🌤'},2:{n:'多云',i:'⛅'},3:{n:'阴',i:'☁️'},
+    45:{n:'雾',i:'🌫'},48:{n:'冻雾',i:'🌫'},
+    51:{n:'毛毛雨',i:'🌦'},53:{n:'毛毛雨',i:'🌦'},55:{n:'毛毛雨',i:'🌦'},
+    61:{n:'小雨',i:'🌦'},63:{n:'中雨',i:'🌧'},65:{n:'大雨',i:'⛈'},
+    80:{n:'阵雨',i:'🌧'},81:{n:'中阵雨',i:'🌧'},82:{n:'强阵雨',i:'⛈'},
+    95:{n:'雷阵雨',i:'⛈'},96:{n:'雷阵雨伴冰雹',i:'⛈'},99:{n:'强雷雨伴冰雹',i:'⛈'}
+  };
+  function wmoToObj(code){return wmoCodeMap[code]||{n:'多云',i:'⛅'};}
+  var weatherIconMap={'晴':'☀️','少云':'⛅','晴间多云':'🌤','多云':'☁️','阴':'☁️','小雨':'🌦','中雨':'🌧','大雨':'⛈','雷阵雨':'⛈','阵雨':'🌧','雪':'❄️','小雪':'🌨','雾':'🌫','霾':'😷'};
+  function getIcon(w){return weatherIconMap[w]||'🌤';}
+
+  // === Date utils ===
+  function pad(n){return n<10?'0'+n:n;}
+  function fmtDate(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function parseDate(s){var p=s.split('-');return new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));}
+  function diffDays(a,b){return Math.round((parseDate(a)-parseDate(b))/86400000);}
+
+  // === localStorage snapshot (past-date freeze) ===
+  var _snap={};
+  function saveSnap(dateStr,data){
+    var key='travel_weather_'+dateStr, val=JSON.stringify(data);
+    try{localStorage.setItem(key,val);}catch(e){_snap[dateStr]=val;}
+  }
+  function loadSnap(dateStr){
+    var key='travel_weather_'+dateStr, val=null;
+    try{val=localStorage.getItem(key);}catch(e){val=_snap[dateStr];}
+    if(!val)return null;
+    try{return JSON.parse(val);}catch(e){return null;}
+  }
+
+  // === Find or create weather cards ===
+  // The generated page may render static .weather-card elements; if missing, skip enhancement.
+  function getCards(){return document.querySelectorAll('.weather-card');}
+
+  // === Reset cards to loading (skip past dates) ===
+  function resetCards(){
+    var today=fmtDate(new Date());
+    getCards().forEach(function(card){
+      var d=card.getAttribute('data-date');
+      if(!d)return;
+      var diff=diffDays(d,today);
+      if(diff<0){
+        var snap=loadSnap(d);
+        if(snap){
+          applySnap(card,d,snap);
+          return;
+        }
+        // No snapshot, leave existing static content (Python-rendered)
+        return;
+      }
+      card.classList.add('pending');
+    });
+  }
+
+  function applySnap(card,dateStr,snap){
+    if(!snap)return;
+    card.classList.remove('pending');
+    // Update icon/temp/condition if elements exist
+    var iconEl=card.querySelector('.weather-icon')||card.querySelector('[data-w-icon]');
+    var condEl=card.querySelector('.weather-condition')||card.querySelector('[data-w-cond]');
+    var tempEl=card.querySelector('.weather-temp')||card.querySelector('[data-w-temp]');
+    if(snap.source==='amap'&&snap.cast){
+      if(iconEl)iconEl.textContent=getIcon(snap.cast.day_weather);
+      if(tempEl)tempEl.textContent=snap.cast.day_temp+'°/'+snap.cast.night_temp+'°';
+      if(condEl)condEl.textContent=snap.cast.day_weather+' '+snap.cast.day_wind_dir+'风';
+    }else if(snap.source==='om'&&snap.om){
+      var o=wmoToObj(snap.om.code);
+      if(iconEl)iconEl.textContent=o.i;
+      if(tempEl)tempEl.textContent=snap.om.tmax+'°/'+snap.om.tmin+'°';
+      if(condEl)condEl.textContent=o.n+(snap.om.pop!=null?(' · 降水'+snap.om.pop+'%'):'');
+    }
+  }
+
+  function applyAmap(card,dateStr,cast){
+    if(!cast)return;
+    card.classList.remove('pending');
+    var iconEl=card.querySelector('.weather-icon')||card.querySelector('[data-w-icon]');
+    var condEl=card.querySelector('.weather-condition')||card.querySelector('[data-w-cond]');
+    var tempEl=card.querySelector('.weather-temp')||card.querySelector('[data-w-temp]');
+    if(iconEl)iconEl.textContent=getIcon(cast.day_weather);
+    if(tempEl)tempEl.textContent=cast.day_temp+'°/'+cast.night_temp+'°';
+    if(condEl)condEl.textContent=cast.day_weather+' '+cast.day_wind_dir+'风';
+    var today=fmtDate(new Date());
+    if(diffDays(dateStr,today)>=0)saveSnap(dateStr,{source:'amap',cast:cast,savedAt:Date.now()});
+  }
+
+  function applyOm(card,dateStr,om){
+    if(!om)return;
+    var condEl=card.querySelector('.weather-condition')||card.querySelector('[data-w-cond]');
+    var cur=condEl?condEl.textContent:'';
+    if(cur && cur!=='加载中' && cur!=='已过 · 无定格' && cur.indexOf('距出行')===-1 && cur.indexOf('待临近')===-1)return;
+    card.classList.remove('pending');
+    var iconEl=card.querySelector('.weather-icon')||card.querySelector('[data-w-icon]');
+    var tempEl=card.querySelector('.weather-temp')||card.querySelector('[data-w-temp]');
+    var o=wmoToObj(om.code);
+    if(iconEl)iconEl.textContent=o.i;
+    if(tempEl)tempEl.textContent=om.tmax+'°/'+om.tmin+'°';
+    if(condEl)condEl.textContent=o.n+(om.pop!=null?(' · 降水'+om.pop+'%'):'');
+    var today=fmtDate(new Date());
+    if(diffDays(dateStr,today)>=0)saveSnap(dateStr,{source:'om',om:om,savedAt:Date.now()});
+  }
+
+  // === Open-Meteo 14-day fallback ===
+  function fetchOpenMeteo(){
+    var today=fmtDate(new Date());
+    var locToDates={};
+    TRIP_DATES.forEach(function(d){
+      if(diffDays(d,today)<0)return;
+      var loc=DAY_LATLNG[d];
+      if(!loc)return;
+      var key=loc.lat+','+loc.lng;
+      if(!locToDates[key])locToDates[key]={loc:loc,dates:[]};
+      locToDates[key].dates.push(d);
+    });
+    Object.keys(locToDates).forEach(function(key){
+      var item=locToDates[key];
+      var url='https://api.open-meteo.com/v1/forecast?latitude='+item.loc.lat+'&longitude='+item.loc.lng+
+        '&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia/Shanghai&forecast_days=14';
+      fetch(url).then(function(r){return r.json();}).then(function(data){
+        if(!data||!data.daily)return;
+        var times=data.daily.time||[],codes=data.daily.weathercode||[],tmax=data.daily.temperature_2m_max||[],tmin=data.daily.temperature_2m_min||[],pops=data.daily.precipitation_probability_max||[];
+        var map={};
+        times.forEach(function(t,i){map[t]={code:codes[i],tmax:Math.round(tmax[i]),tmin:Math.round(tmin[i]),pop:(pops[i]!=null?pops[i]:null)};});
+        item.dates.forEach(function(d){
+          if(map[d]){
+            var card=document.querySelector('.weather-card[data-date="'+d+'"]');
+            if(card)applyOm(card,d,map[d]);
+          }
+        });
+      }).catch(function(err){console.warn('[weather] open-meteo fail:',err.message);});
+    });
+  }
+
+  // === AMap JSONP (real-time + 4-day forecast) ===
+  function refreshWeather(){
+    if(!AMAP_KEY||!TRIP_DATES.length){
+      // No AMap key, still try Open-Meteo
+      fetchOpenMeteo();
+      return;
+    }
+    resetCards();
+    var pending=0,timers=[];
+    function cleanup(){timers.forEach(clearTimeout);timers=[];}
+    function done(){if(--pending<=0){cleanup();console.log('[weather] all done');}}
+    function loadJSONP(url,cbName,handler){
+      pending++;
+      var s=document.createElement('script');
+      s.async=true;
+      var settled=false;
+      function settle(ok,data){
+        if(settled)return;
+        settled=true;
+        if(s.parentNode)s.parentNode.removeChild(s);
+        try{delete window[cbName];}catch(e){window[cbName]=undefined;}
+        if(ok){handler(data);}else{console.warn('[weather] jsonp fail:',url);}
+        done();
+      }
+      window[cbName]=function(data){settle(true,data);};
+      s.onerror=function(){settle(false,null);};
+      timers.push(setTimeout(function(){settle(false,null);},8000));
+      s.src=url;
+      document.body.appendChild(s);
+    }
+
+    // 1) Real-time weather (hotel location)
+    if(HOTEL_ADCODE){
+      loadJSONP(
+        'https://restapi.amap.com/v3/weather/weatherInfo?city='+HOTEL_ADCODE+'&key='+AMAP_KEY+'&extensions=base&callback=_wcb_now',
+        '_wcb_now',
+        function(data){
+          if(data.status==='1'&&data.lives&&data.lives[0]){
+            var w=data.lives[0];
+            var now=document.querySelector('[data-w-now]');
+            if(now){
+              var tEl=now.querySelector('[data-w-now-temp]');
+              var dEl=now.querySelector('[data-w-now-desc]');
+              if(tEl)tEl.textContent=w.temperature+'°';
+              if(dEl)dEl.textContent=w.weather+' · 湿度'+w.humidity+'%';
+            }
+          }
+        }
+      );
+    }
+
+    // 2) 4-day forecast per adcode (serial to avoid QPS)
+    var adcodeToDates={};
+    TRIP_DATES.forEach(function(d){
+      var a=DAY_ADCCODE[d];if(!a)return;
+      var today=fmtDate(new Date());
+      if(diffDays(d,today)<0)return;
+      if(!adcodeToDates[a])adcodeToDates[a]=[];
+      adcodeToDates[a].push(d);
+    });
+    var adcodes=Object.keys(adcodeToDates);
+    var idx=0;
+    function next(){
+      if(idx>=adcodes.length)return;
+      var adcode=adcodes[idx++];
+      var cbName='_wcb_fc_'+idx;
+      loadJSONP(
+        'https://restapi.amap.com/v3/weather/weatherInfo?city='+adcode+'&key='+AMAP_KEY+'&extensions=all&callback='+cbName,
+        cbName,
+        function(data){
+          var fcMap={};
+          if(data.status==='1'&&data.forecasts&&data.forecasts[0]){
+            var fc=data.forecasts[0].casts||[];
+            fc.forEach(function(c){fcMap[c.date]=c;});
+          }
+          (adcodeToDates[adcode]||[]).forEach(function(d){
+            var card=document.querySelector('.weather-card[data-date="'+d+'"]');
+            if(card&&fcMap[d])applyAmap(card,d,fcMap[d]);
+          });
+          next();
+        }
+      );
+    }
+    next();
+
+    // 3) Open-Meteo fallback (parallel)
+    fetchOpenMeteo();
+
+    // 4) 8s timeout fallback
+    setTimeout(function(){
+      getCards().forEach(function(card){
+        var condEl=card.querySelector('.weather-condition');
+        if(condEl&&condEl.textContent==='加载中')condEl.textContent='暂未获取 · 点刷新';
+      });
+    },8000);
+  }
+
+  // === Init ===
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',refreshWeather);
+  }else{
+    refreshWeather();
+  }
+  setInterval(refreshWeather,300000); // 5-min auto refresh
+
+  // === Tab switching (if tabs exist) ===
+  document.querySelectorAll('.tab-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var tab=this.dataset.tab;
+      document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+      document.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});
+      this.classList.add('active');
+      var pane=document.getElementById('tab-'+tab);
+      if(pane)pane.classList.add('active');
+      if(tab==='schedule'&&window.map){setTimeout(function(){if(window.map.resize)window.map.resize();},120);}
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+  });
+})();
+</script>
+
 </body>
 </html>

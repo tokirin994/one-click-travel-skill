@@ -300,3 +300,19 @@ Before finishing:
 - Verify route polylines are not attempted for points without coordinates.
 - Verify mobile layout does not overlap.
 - Confirm every external link either exists in collected data or is omitted.
+
+## Weather Module Optimizations
+
+详见 `references/html-template-optimizations.md` for the full spec. Key enhancements applied to `assets/html-template/template.html`:
+
+- **Dual data sources**: AMap (real-time + 4-day forecast via JSONP) + Open-Meteo (14-day forecast via fetch, no key required, CORS-friendly). Open-Meteo fills dates beyond AMap's 4-day window.
+- **Per-day region query**: Each trip day queries weather by its main activity location's adcode (AMap) + lat/lng (Open-Meteo), not a single city-level query.
+- **Past-date snapshot freeze**: Past dates' weather is saved to localStorage on first fetch and restored on subsequent loads; API calls are skipped for past dates. Enables post-trip review.
+- **JSONP robustness**: onerror handler + 8s timeout + script cleanup + serial requests (avoids AMap QPS limit).
+- **WMO code mapping**: Open-Meteo returns numeric WMO codes (0/1/51/80/95...) mapped to Chinese names + emoji.
+- **5-Tab structure**: 行程(含地图) / 天气 / 美食 / 文娱活动 / 速查贴士. Map is embedded in the schedule tab, not a separate tab.
+- **Card state machine**: past (frozen) / today (highlighted) / future-forecast / loading. Cards always render — no empty placeholders for future dates.
+- **Auto refresh**: every 5 minutes via setInterval; manual refresh via button.
+- **8s timeout fallback**: cards still in "加载中" after 8s show "暂未获取 · 点刷新".
+
+The client-side enhancement script is injected before `</body>` in template.html (marked with `weather-enhance-injected` comment). It reads config from `window.AMAP_KEY`, `window.TRIP_DATES`, `window.DAY_ADCCODE`, `window.DAY_LATLNG`, `window.HOTEL_ADCODE` if the generated page exposes them; otherwise it degrades gracefully and only refreshes what it can.
